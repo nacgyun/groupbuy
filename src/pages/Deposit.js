@@ -7,6 +7,7 @@ export default function Deposit() {
   const [account, setAccount] = useState("");
   const [balance, setBalance] = useState("0");
   const [amount, setAmount] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const connectWallet = async () => {
     if (window.ethereum) {
@@ -17,17 +18,41 @@ export default function Deposit() {
 
   const deposit = async () => {
     if (!contract || !amount) return;
-    const tx = await contract.deposit({ value: parseEther(amount) });
-    await tx.wait();
-    alert("Deposited successfully");
-    setAmount("");
-    fetchBalance();
+    try {
+      setLoading(true);
+      const tx = await contract.deposit({ value: parseEther(amount) });
+      await tx.wait();
+      alert("✅ 예치 완료");
+      setAmount("");
+      fetchBalance();
+    } catch (err) {
+      console.error("Deposit failed:", err);
+      alert("❌ 예치 실패");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const withdraw = async () => {
+    if (!contract) return;
+    try {
+      setLoading(true);
+      const tx = await contract.withdrawMyBalance(); // ✅ 스마트컨트랙트의 출금 함수명
+      await tx.wait();
+      alert("💸 출금 완료!");
+      fetchBalance();
+    } catch (err) {
+      console.error("Withdraw failed:", err);
+      alert("❌ 출금 실패");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const fetchBalance = async () => {
     if (!contract || !account) return;
-    const b = await contract.balances(account);
-    setBalance(formatEther(b));
+    const bal = await contract.balances(account);
+    setBalance(formatEther(bal));
   };
 
   useEffect(() => {
@@ -52,10 +77,20 @@ export default function Deposit() {
           />
           <button
             onClick={deposit}
-            className="ml-2 bg-blue-500 text-white px-4 py-1 rounded"
+            disabled={loading}
+            className="ml-2 bg-blue-500 text-white px-4 py-1 rounded disabled:opacity-50"
           >
-            Deposit
+            {loading ? "예치 중..." : "Deposit"}
           </button>
+          <div className="mt-4">
+            <button
+              onClick={withdraw}
+              disabled={loading}
+              className="bg-yellow-600 text-white px-4 py-2 rounded disabled:opacity-50"
+            >
+              {loading ? "출금 중..." : "💸 출금하기"}
+            </button>
+          </div>
         </>
       ) : (
         <button

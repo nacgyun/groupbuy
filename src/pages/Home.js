@@ -15,7 +15,7 @@ export default function Home() {
 
   return (
     <div className="text-center mt-10 text-2xl">
-      🏠 Welcome to the GroupBuy DApp!
+      🏠 블록체인을 활용한 공동구매
       <div className="mt-8 space-x-4">
         <Link to="/rooms">
           <button className="bg-blue-500 text-white px-4 py-2 rounded">방 리스트 보기</button>

@@ -14,7 +14,7 @@ export const ContractProvider = ({ children }) => {
         const provider = new ethers.BrowserProvider(window.ethereum);
         const signer = await provider.getSigner();
         const contractInstance = new ethers.Contract(
-          "0xd2a5bC10698FD955D1Fe6cb468a17809A08fd005", // 실제 배포한 컨트랙트 주소로 바꾸세요
+          "0xe57b5b3Dfd5020918F5aA52334C030b6F865b913", // 실제 배포한 컨트랙트 주소로 바꾸세요
           ContractABI.abi,
           signer
         );
