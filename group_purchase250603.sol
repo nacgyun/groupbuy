@@ -3,24 +3,25 @@ pragma solidity ^0.8.19;
 
 contract Participationtest {
     struct Purchase {
-        uint256 unitPrice; // 참여 금액
+        uint256 unitPrice; // 참여 금액 (1회 참여당)
         uint256 targetParticipants; // 목표 참여자 수
-        uint256 currentParticipants; // 현재 참여자 수
-        uint256 deadline; // 마감 시간
-        bool isCompleted; // 완료 여부
-        bool isWithdrawn; // 인출 여부
-        address creator; // 개설자
-        string itemName; // ✅ 물품 이름
-        mapping(address => uint256) participationCount;
-        address[] participants;
+        uint256 currentParticipants; // 현재까지 참여한 인원
+        uint256 deadline; // 마감 시간 (timestamp)
+        bool isCompleted; // 목표 도달 여부
+        bool isWithdrawn; // 정산 여부
+        address creator; // 방 개설자 주소
+        string itemName; // 물품 이름
+        mapping(address => uint256) participationCount; // 참여자별 참여 횟수
+        address[] participants; // 참여자 목록
     }
 
-    uint256[] public purchaseList;
-    mapping(uint256 => Purchase) public purchases;
-    mapping(address => uint256) public balances;
-    mapping(uint256 => uint256) public purchaseFunds;
-    mapping(uint256 => mapping(address => bool)) public isParticipantAdded;
+    uint256[] public purchaseList; // 생성된 purchase ID 목록
+    mapping(uint256 => Purchase) public purchases; // purchaseId => Purchase 정보
+    mapping(address => uint256) public balances; // 사용자별 예치금
+    mapping(uint256 => uint256) public purchaseFunds; // 각 공동구매에 쌓인 총 금액
+    mapping(uint256 => mapping(address => bool)) public isParticipantAdded; // 중복 참여 방지용
 
+    // === 이벤트 정의 ===
     event Deposited(address indexed user, uint256 amount);
     event Participated(
         uint256 indexed purchaseId,
@@ -44,12 +45,14 @@ contract Participationtest {
         uint256 amount
     );
 
+    // === 사용자 예치금 충전 ===
     function deposit() external payable {
         require(msg.value > 0, "No ETH sent");
         balances[msg.sender] += msg.value;
         emit Deposited(msg.sender, msg.value);
     }
 
+    // === 공동구매 방 생성 ===
     function setupPurchase(
         uint256 purchaseId,
         uint256 _unitPrice,
@@ -68,6 +71,7 @@ contract Participationtest {
         purchaseList.push(purchaseId);
     }
 
+    // === 공동구매 참여 (1회 참여 기준) ===
     function participate(uint256 purchaseId) external {
         Purchase storage p = purchases[purchaseId];
         require(p.deadline != 0, "Purchase does not exist");
@@ -79,6 +83,7 @@ contract Participationtest {
         purchaseFunds[purchaseId] += p.unitPrice;
         p.participationCount[msg.sender] += 1;
 
+        // 최초 참여자라면 목록에 추가
         if (!isParticipantAdded[purchaseId][msg.sender]) {
             p.participants.push(msg.sender);
             isParticipantAdded[purchaseId][msg.sender] = true;
@@ -92,16 +97,19 @@ contract Participationtest {
             p.participationCount[msg.sender]
         );
 
+        // 목표 인원 도달 시 완료 처리
         if (p.currentParticipants >= p.targetParticipants) {
             p.isCompleted = true;
         }
     }
 
+    // === 참여 취소 (마감 이전, 미완료 상태에서만 가능) ===
     function cancelParticipation(uint256 purchaseId) external {
         Purchase storage p = purchases[purchaseId];
         require(p.deadline != 0, "Purchase does not exist");
         require(block.timestamp < p.deadline, "Deadline passed");
         require(!p.isCompleted, "Purchase completed");
+
         uint256 count = p.participationCount[msg.sender];
         require(count > 0, "No participation to cancel");
 
@@ -117,10 +125,12 @@ contract Participationtest {
         );
     }
 
+    // === 전체 환불 (마감 전: 개설자만, 마감 후: 누구나 가능) ===
     function refundAll(uint256 purchaseId) external {
         Purchase storage p = purchases[purchaseId];
         require(p.deadline != 0, "Purchase does not exist");
         require(!p.isCompleted, "Purchase completed, cannot refund");
+
         require(
             msg.sender == p.creator || block.timestamp > p.deadline,
             "Only creator before deadline, anyone after deadline"
@@ -145,6 +155,7 @@ contract Participationtest {
         emit RefundedAll(purchaseId);
     }
 
+    // === 개설자가 모인 금액을 정산받는 함수 (조건: 완료 상태 & 개설자 본인) ===
     function withdraw(uint256 purchaseId) external {
         Purchase storage p = purchases[purchaseId];
         require(msg.sender == p.creator, "Only creator can withdraw");
@@ -161,6 +172,7 @@ contract Participationtest {
         emit Withdrawn(purchaseId, msg.sender, totalAmount);
     }
 
+    // === 전체 공동구매 목록 반환 ===
     function getPurchaseInfo()
         public
         view
@@ -196,6 +208,7 @@ contract Participationtest {
         }
     }
 
+    // === 특정 공동구매 상세 정보 반환 ===
     function getPurchase(
         uint256 purchaseId
     )
@@ -223,6 +236,7 @@ contract Participationtest {
         );
     }
 
+    // === 특정 유저의 참여 횟수 조회 ===
     function getParticipationCount(
         uint256 purchaseId,
         address user
@@ -230,12 +244,14 @@ contract Participationtest {
         return purchases[purchaseId].participationCount[user];
     }
 
+    // === 특정 공동구매에 누적된 금액 조회 ===
     function getPurchaseFunds(
         uint256 purchaseId
     ) external view returns (uint256) {
         return purchaseFunds[purchaseId];
     }
 
+    // === 유저가 예치금에서 출금 (자신의 잔액) ===
     function withdrawMyBalance() external {
         uint256 amount = balances[msg.sender];
         require(amount > 0, "No balance to withdraw");
